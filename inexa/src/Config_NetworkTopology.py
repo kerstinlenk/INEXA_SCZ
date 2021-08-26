@@ -4,133 +4,183 @@ import numpy as np
 import pandas as pd
 
 # Set Neuron parameters
-from src.Functions import uniform_3D, distance_coupling, complex_connect, createGaussianConnections
-import scipy
-def config_networkTopology(premadeNNTPath):
-    CultureSpace = np.array([750, 750, 10])
+from src.Functions import uniform_3D, distance_coupling, complex_connect, create_gaussian_connections
 
-    MakeNewTopology = False
-    usePremadeNeuronNetwork = True
-    return NetworkTopology(CultureSpace, MakeNewTopology, usePremadeNeuronNetwork, premadeNNTPath)
+SEPARATOR = ";"
+
+BASE_NETWORK_FNAME = "/BaseNetwork.csv"
+
+ASTROCYTE_NEURON_CONNECTIONS_FNAME = "/AstrocyteNeuronConnections.csv"
+
+ASTROCYTE_CONNECTIONS_FNAME = "/AstrocyteConnections.csv"
+
+ASTROCYTE_NETWORK_TOPOLOGY_FNAME = "/AstrocyteNetworkTopology.csv"
+
+NEURON_NETWORK_TOPOLOGY_FNAME = "/NeuronNetworkTopology.csv"
+
+
+def config_networkTopology(path_to_neuron_network, path_to_astro_network):
+    return NetworkTopology(path_to_neuron_network, path_to_astro_network)
+
 
 class NetworkTopology:
-    def __init__(self, cultureSpace, MakeNewTopology, usePremadeNeuronNetwork,premadeNNTPath):
-        self.cultureSpace = cultureSpace
-        self.makeNewTopology = MakeNewTopology
-        self.premadeNNTPath = premadeNNTPath # by default "../networks/ANN_30/"
-        if self.makeNewTopology:
-            self.usePremadeNeuronNetwork = usePremadeNeuronNetwork
-        else:
-            self.TopologyLoadPath = premadeNNTPath
+    culture_space_dim = np.array([750, 750, 10])  # [\mu m]
 
-    def CreateNetworkTopology(self, Neuron, Astrocyte):  # TODO: -check which parameters to store in the object
+    # [\mu m]
+    min_neuron_distance = 10
+    neuron_connectivity_std = 200
+
+    # [\mu m], min distance between 2 astrocytes
+    min_astrocyte_distance = 30
+    # Maximum distance between 2 (connected[?]) astrocyte in micrometers
+    max_astrocyte_distance = 100
+    # Absolute maximum distance after which the astrocyte will not connect to synapses
+    max_astrocyte_reach_distance = 70
+
+    # Standard deviation of astrocyte connectivity to neuron
+    astrocyte_neuron_connectivity_std = 150
+
+    create_new_neuron_topology = False
+    create_new_astrocyte_topology = False
+
+    path_to_neuron_networks = ""
+    path_to_astrocyte_networks = ""
+
+    def __init__(self, path_to_neuron_networks, path_to_astrocyte_networks):
+        self.path_to_neuron_networks = path_to_neuron_networks
+        self.path_to_astrocyte_network = path_to_astrocyte_networks
+
+        self.base_activity = np.array([])
+        self.is_synapse_connect_to_astrocyte = np.array([])
+        self.neuron_locations = np.array([])
+        self.base_network_activity = np.array([])
+
+        self.astrocyte_locations = np.array([])
+        self.astrocyte_connections = np.array([])
+
+        self.activation_threshold = 0
+
+        self.astrocyte_neuron_connections = np.array([])
+
+    def create_network_topologies(self, neuron, astrocyte):
+        """
+        Create network topologies if respective flags (create_new_neuron_topology, create_new_astrocyte_topology) are set to True
+        Connect Neuron/Neuron, Neuron/Astrocyte and Astrocyte/Astrocyte
+
+        Neuron-Neuron connections are gaussian based on distance
+        Astrocyte-Neuron are gaussian based on distance until it reaches a limiter
+        Astrocyte-Astrocyte definitly connect within set radius
+        """
+
         # --- Basic activity of all neurons --- which is a random number between 0 and an upper boundary from a triangular distribution
-        numNeur = Neuron.number
-        self.BaseBasicActivity = np.random.triangular(0, 0.5, 1,
-                                                      size=numNeur)  # -why is there only a self.NeuronConnections when the if statement is true?
-        self.synapsesConnectedToAstrocytes = np.zeros([numNeur, numNeur])
-        # Give each neuron spatial coordinates
-        # Use premade defined in premadeNNTPath/NeuronNetworkTopology.csv or create new
-        if self.usePremadeNeuronNetwork:
-            pathPremadeNN = self.premadeNNTPath + "NeuronNetworkTopology.csv"
-            importeddata = pd.read_csv(pathPremadeNN, sep=";", header=None).dropna(how='all', axis=1).values
-            self.neuronLocation = np.squeeze(importeddata)
+        nr_of_neurons = neuron.number
 
-            pathPremadeBN = self.premadeNNTPath + "BaseNetwork.csv"
-            self.baseNetwork = pd.read_csv(pathPremadeBN, sep=";", header=None).dropna(how='all', axis=1).as_matrix()
+        self.base_activity = np.random.triangular(0, 0.5, 1, size=nr_of_neurons)
+        self.is_synapse_connect_to_astrocyte = np.zeros([nr_of_neurons, nr_of_neurons])
 
-        else:
-            self.neuronLocation = uniform_3D(numNeur, self.cultureSpace, Astrocyte.MinimumNeuronDistance)
-            neuronConnections = createGaussianConnections(self.neuronLocation, Astrocyte.NeuroSTD, cut_off=1e5)
+        if self.create_new_neuron_topology:
+            # create randomly uniform 3D Locations within the culture space. Locations must be at least self.min_neuron_distance apart.
+            self.neuron_locations = uniform_3D(nr_of_neurons, self.culture_space_dim, self.min_neuron_distance)
+
+            neuronConnections = create_gaussian_connections(self.neuron_locations, self.neuron_connectivity_std, cut_off=1e5)
+
             #  Excitatory and Inhibitory synaptic strengths is a random number between 0 and an upper boundary from a triangular distribution
-            self.baseNetwork = np.zeros((numNeur, numNeur))
-            self.baseNetwork[:Neuron.ex0, :] = np.random.triangular(0, 0.5, 1, size=(Neuron.ex0, Neuron.number))
-            self.baseNetwork[Neuron.ex0:, :] = np.random.triangular(-1, -0.5, 0, size=(Neuron.in0, Neuron.number))
-            self.baseNetwork[neuronConnections == 0] = 0  # non-active neuron connections = 0
-            np.fill_diagonal(self.baseNetwork, 0)  # why not all neurons at once?
+            self.base_network_activity = np.zeros((nr_of_neurons, nr_of_neurons))
+            self.base_network_activity[:neuron.nr_excitatory_neurons, :] = np.random.triangular(0, 0.5, 1, size=(neuron.nr_excitatory_neurons, neuron.number))
+            self.base_network_activity[neuron.nr_excitatory_neurons:, :] = np.random.triangular(-1, -0.5, 0, size=(neuron.nr_inhibitory_neurons, neuron.number))
+            self.base_network_activity[neuronConnections == 0] = 0  # non-active neuron connections = 0
+            np.fill_diagonal(self.base_network_activity, 0)
+        else:
+            self.load_neuron_network()
 
         # create astrocyte network
         # Each column is connected to each astrocyte.
-        if (Astrocyte.useAstrocyteNetwork):
+        if astrocyte.use_astrocyte_network and self.create_new_astrocyte_topology:
             # create astrocytes
-            self.astrocyteLocation = uniform_3D(Astrocyte.numberOfAstrocytes, self.cultureSpace,
-                                                Astrocyte.MinimumAstrocyteDistance)
+            self.astrocyte_locations = uniform_3D(astrocyte.number_of_astrocytes, self.culture_space_dim, self.min_astrocyte_distance)
             # Connecting astrocytes that ended up close enough to each other.
-            self.astrocyteConnections = distance_coupling(self.astrocyteLocation, Astrocyte.connectionDistance)
-            amountOfConnections = np.sum(self.astrocyteConnections, axis=0)
-            self.activationThreshold = Astrocyte.slope * amountOfConnections + Astrocyte.intercept
+            self.astrocyte_connections = distance_coupling(self.astrocyte_locations, self.max_astrocyte_distance)
+            number_of_connections = np.sum(self.astrocyte_connections, axis=0)
+            self.activation_threshold = astrocyte.slope * number_of_connections + astrocyte.intercept
+
             # Connect the two networks
-            self.astrocyteNeuronConnections = complex_connect(self.neuronLocation, self.baseNetwork,
-                                                              self.astrocyteLocation,
-                                                              Astrocyte.ANconnectivitySTD,
-                                                              Astrocyte.MaxAstrocyteReachDistance)
-            self.initSynapsesConnectedToAstrocytes(numNeur)
+            self.astrocyte_neuron_connections = complex_connect(self.neuron_locations, self.base_network_activity,
+                                                                self.astrocyte_locations,
+                                                                self.astrocyte_neuron_connectivity_std,
+                                                                self.max_astrocyte_reach_distance)
+            self.init_synapses_connected_to_astrocyte(nr_of_neurons)
 
-    def initSynapsesConnectedToAstrocytes(self, numNeur):
-        for i in range(0, numNeur):
-            for ii in range(0, numNeur):
-                self.synapsesConnectedToAstrocytes[i, ii] = np.sum(self.astrocyteNeuronConnections[i, ii, :])
+    def init_synapses_connected_to_astrocyte(self, nr_of_neurons):
+        for i in range(0, nr_of_neurons):
+            for ii in range(0, nr_of_neurons):
+                self.is_synapse_connect_to_astrocyte[i, ii] = np.sum(self.astrocyte_neuron_connections[i, ii, :])
 
+    def collect_useful_values(self):
+        self.active_synapses = np.ascontiguousarray(self.base_network_activity != 0, dtype=np.int8)
+        self.excitatory_synapses = np.ascontiguousarray(self.base_network_activity > 0, dtype=np.int8)
+        self.inhibitory_synapses = np.ascontiguousarray(self.base_network_activity < 0, dtype=np.int8)
 
-    def CollectUsefulValues(self, Neuron):
-        self.activeSynapses = np.ascontiguousarray(self.baseNetwork != 0, dtype=np.int8)  #TODO SparseMatrix Candidate
-        self.excitatorySynapses = np.ascontiguousarray(self.baseNetwork > 0, dtype=np.int8)
-        self.inhibitorySynapses = np.ascontiguousarray(self.baseNetwork < 0, dtype=np.int8)
         # amount of excitatory and inhibtory synapses
-        self.numberOfInhibitorySyn = np.sum(self.inhibitorySynapses)
-        self.numberOfExcitatorySyn = np.sum(self.excitatorySynapses)
-        # synapse effect: Has values 1 for exitatory, 0 for not  connected and -1 for negatives.
-        self.synapseEffect = self.excitatorySynapses - self.inhibitorySynapses  # Counting how many excitatory connections ended up to each astrocyte
-        self.numberExcitatoryConnectionsToAstrocyte = sum(sum(self.astrocyteNeuronConnections))
-        # Counting which synapses are connected to an astrocyte to begin with
-        self.NumberAstrocytesConnectedToSynapse = np.sum(self.astrocyteNeuronConnections, axis=2)
-        self.numberOfAstrocyteConnections = np.sum(self.astrocyteConnections, axis=0)
+        self.nr_of_inhibitory_synapses = np.sum(self.inhibitory_synapses)
+        self.nr_of_excitatory_synapses = np.sum(self.excitatory_synapses)
 
-    def SaveNetworkTopology(self, Neuron, Astrocyte, directory):
+        # synapse effect: Has values 1 for exitatory, 0 for not  connected and -1 for negatives.
+        self.synapse_effect = self.excitatory_synapses - self.inhibitory_synapses  # Counting how many excitatory connections ended up to each astrocyte
+        self.nr_of_excitatory_conns_to_astrocyte = sum(sum(self.astrocyte_neuron_connections))
+        # Counting which synapses are connected to an astrocyte to begin with
+        self.nr_of_astrocytes_connected_to_synapse = np.sum(self.astrocyte_neuron_connections, axis=2)
+        self.nr_of_astrocyte_connections = np.sum(self.astrocyte_connections, axis=0)
+
+    def save_network_topology(self, neuron, astrocyte, directory):
         folderName = directory
+        print(directory)
         if not os.path.exists(folderName):
             os.makedirs(folderName)
         # Neuron Network
-        pd.DataFrame(self.neuronLocation).to_csv(folderName + "/NeuronNetworkTopology.csv", header=None, index=None)
+        pd.DataFrame(self.neuron_locations).to_csv(folderName + NEURON_NETWORK_TOPOLOGY_FNAME, header=False, index=False)
         # Astrocyte Network
-        if Astrocyte.useAstrocyteNetwork:
-            pd.DataFrame(self.astrocyteLocation).to_csv(folderName + "/AstrocyteNetworkTopology.csv", header=None, index=None)
-            pd.DataFrame(self.astrocyteConnections).to_csv(folderName + "/AstrocyteConnections.csv", header=None, index=None)
-            pd.DataFrame(self.astrocyteNeuronConnections.T.reshape(-1, Neuron.number)).to_csv(folderName + "/AstrocyteNeuronConnections.csv", header=None, index=None)
-        pd.DataFrame(self.baseNetwork).to_csv(folderName + "/BaseNetwork.csv", header=None, index=None)
+        if astrocyte.use_astrocyte_network:
+            pd.DataFrame(self.astrocyte_locations).to_csv(folderName + ASTROCYTE_NETWORK_TOPOLOGY_FNAME, header=False, index=False)
+            pd.DataFrame(self.astrocyte_connections).to_csv(folderName + ASTROCYTE_CONNECTIONS_FNAME, header=False, index=False)
+            pd.DataFrame(self.astrocyte_neuron_connections.T.reshape(-1, neuron.number)).to_csv(folderName + ASTROCYTE_NEURON_CONNECTIONS_FNAME,
+                                                                                                header=False, index=False)
+        pd.DataFrame(self.base_network_activity).to_csv(folderName + BASE_NETWORK_FNAME, header=False, index=False)
 
-    def LoadNetworkTopology(self, Neuron, Astrocyte):  #
-        #print("Load Network Topology")
-        self.synapsesConnectedToAstrocytes = np.zeros([Neuron.number, Neuron.number])
-        # impoprt Neuron location and baseNetwork
-        pathNNT = self.premadeNNTPath + "NeuronNetworkTopology.csv"
-        pathBN = self.premadeNNTPath + "BaseNetwork.csv"
-        self.neuronLocation = pd.read_csv(pathNNT, sep=";", header=None).dropna(how='all', axis=1).to_numpy()  # drop empty last column to avoid issues further down the line
-        self.baseNetwork = pd.read_csv(pathBN, sep=";", header=None).dropna(how='all', axis=1).to_numpy()
+    def load_network_topologies(self, neuron, astrocyte):  #
+        """
+        Load network topologies and their connectivity matrices. Initialize memory etc.
+
+        """
+        self.is_synapse_connect_to_astrocyte = np.zeros([neuron.number, neuron.number])
+        self.load_neuron_network()
         # import Astrocyte data
-        if Astrocyte.useAstrocyteNetwork:
-            self.loadAstrocyteNetwork(Astrocyte, Neuron)
+        if astrocyte.use_astrocyte_network:
+            self.load_astrocyte_network(astrocyte, neuron)
 
-    def loadAstrocyteNetwork(self, Astrocyte, Neuron):
-        pathANT = self.TopologyLoadPath + "AstrocyteNetworkTopology.csv"
-        pathANC = self.TopologyLoadPath + "AstrocyteNeuronConnections.csv"
-        pathAC = self.TopologyLoadPath + "AstrocyteConnections.csv"
-        self.astrocyteLocation = pd.read_csv(pathANT, sep=";", header=None).dropna(how='all', axis=1).to_numpy(dtype=np.short)
-        self.astrocyteConnections = pd.read_csv(pathAC, sep=";", header=None).dropna(how='all', axis=1).to_numpy(np.short)
+    def load_astrocyte_network(self, astrocyte, neuron):
+        pathANT = self.path_to_astrocyte_network + ASTROCYTE_NETWORK_TOPOLOGY_FNAME
+        pathANC = self.path_to_astrocyte_network + ASTROCYTE_NEURON_CONNECTIONS_FNAME
+        pathAC = self.path_to_astrocyte_network + ASTROCYTE_CONNECTIONS_FNAME
 
-        temp = pd.read_csv(pathANC, sep=";", header=None).dropna(how='all', axis=1).to_numpy()
-        self.astrocyteNeuronConnections = np.zeros((Neuron.number, Neuron.number, Astrocyte.numberOfAstrocytes), dtype=np.int8)
+        self.astrocyte_locations = pd.read_csv(pathANT, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(dtype=np.short)
+        self.astrocyte_connections = pd.read_csv(pathAC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(np.short)
+
+        temp = pd.read_csv(pathANC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
+        self.astrocyte_neuron_connections = np.zeros((neuron.number, neuron.number, astrocyte.number_of_astrocytes), dtype=np.int8)
+
         line = 0
-        for iii in range(Astrocyte.numberOfAstrocytes):
-            for i in range(Neuron.number):
-                for ii in range(Neuron.number):
-                    self.astrocyteNeuronConnections[i, ii, iii] = temp[line, ii]
+        for iii in range(astrocyte.number_of_astrocytes):
+            for i in range(neuron.number):
+                for ii in range(neuron.number):
+                    self.astrocyte_neuron_connections[i, ii, iii] = temp[line, ii]
                 line += 1
 
-        self.CollectUsefulValues(Neuron)
-        self.initSynapsesConnectedToAstrocytes(Neuron.number)
-        self.activationThreshold = Astrocyte.slope * self.numberOfAstrocyteConnections + Astrocyte.intercept
+        self.collect_useful_values()
+        self.init_synapses_connected_to_astrocyte(neuron.number)
+        self.activation_threshold = astrocyte.slope * self.nr_of_astrocyte_connections + astrocyte.intercept
 
-    def astrocyte_dropout(self, prob_conn):
-        if prob_conn < 1:
-            self.astrocyteConnections = self.astrocyteConnections * (np.random.uniform(low=0.0, high=1.0, size=np.shape(self.astrocyteConnections)) <= (prob_conn))
+    def load_neuron_network(self):
+        pathNNT = self.path_to_neuron_networks + NEURON_NETWORK_TOPOLOGY_FNAME
+        pathBN = self.path_to_neuron_networks + BASE_NETWORK_FNAME
+        self.neuron_locations = pd.read_csv(pathNNT, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
+        self.base_network_activity = pd.read_csv(pathBN, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
