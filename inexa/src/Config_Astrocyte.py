@@ -183,17 +183,17 @@ class astrocyte_params:
         self.ANconnectivitySTD = ANconnectivitySTD
         self.MaxAstrocyteReachDistance = MaxAstrocyteReachDistance
         self.usePreSynapse = preSynapse
-        self.useAstrocyte = Astrocyte
-        self.useAstrocyteNetwork = AstrocyteNetwork
+        self.use_astrocyte = Astrocyte
+        self.use_astrocyte_network = AstrocyteNetwork
 
         # Sanity constraints (e.g. if we use AstrocyteNetwork, we also have to use astrocytes)
-        if self.useAstrocyteNetwork:
-            self.useAstrocyte = True
-        if self.useAstrocyte:
+        if self.use_astrocyte_network:
+            self.use_astrocyte = True
+        if self.use_astrocyte:
             self.usePreSynapse = True
 
-        if not self.useAstrocyteNetwork:
-            self.numberOfAstrocytes = 0
+        if not self.use_astrocyte_network:
+            self.number_of_astrocytes = 0
             self.astrocyteInhibition = 0
 
         if self.usePreSynapse:
@@ -204,15 +204,15 @@ class astrocyte_params:
             self.RegenRes = RegenRes
             self.CaRegen = CaRegen
             self.ReBlock = ReBlock
-        if self.useAstrocyte:
+        if self.use_astrocyte:
             self.GlutamateRemoval = GlutamateRemoval
             self.AstrocyteReleaseAmount = AstrocyteReleaseAmount
             self.CaGlutamateReleaseLevel = CaGlutamateReleaseLevel
             self.IPAccumulation = IPAccumulation
             self.IPdegrading = IPdegrading
 
-        if self.useAstrocyteNetwork:
-            self.numberOfAstrocytes = numberOfAstrocytes
+        if self.use_astrocyte_network:
+            self.number_of_astrocytes = numberOfAstrocytes
             self.SynapseCaEffect = SynapseCaEffect
             self.connectionDistance = connectionDistance
             self.spontaneousActivation = SpontaneousActivation
@@ -230,19 +230,20 @@ class astrocyte_params:
     def setAstrocyteConfig(self, p_oex0, p_oin0, numberOfNeurons, syn_str, activeSynapses, numberOfTimesteps):
         if self.usePreSynapse:
             self.configPreSynapseModel(numberOfNeurons, p_oex0, p_oin0, syn_str, activeSynapses)
-        if self.useAstrocyte:
+        if self.use_astrocyte:
             self.configAstrocyteModel(numberOfNeurons)
 
-        if self.useAstrocyteNetwork:
+        if self.use_astrocyte_network:
             self.configAstrocyteNetworkModel(numberOfNeurons, numberOfTimesteps)
 
     def configAstrocyteNetworkModel(self, numberOfNeurons, numberOfTimesteps):
-        self.astrocyteState = np.zeros([self.numberOfAstrocytes], dtype=np.int8)
-        self.activityAnimation = np.zeros([self.numberOfAstrocytes, numberOfTimesteps],dtype=np.int8, order='F') #col major since we always store data for one timestep
+        self.astrocyteState = np.zeros([self.number_of_astrocytes], dtype=np.int8)
+        self.activityAnimation = np.zeros([self.number_of_astrocytes, numberOfTimesteps], dtype=np.int8,
+                                          order='F')  # col major since we always store data for one timestep
         self.animationFrame = 0
         self.amountOfAstrocytesActivatedInSimulation = 0
-        self.tripartiteSynapseCalciums = np.zeros([numberOfNeurons, numberOfNeurons, self.numberOfAstrocytes], dtype=np.single)
-        self.calcium_accumulation_from_synapses = np.zeros([self.numberOfAstrocytes], dtype=np.single)
+        self.tripartiteSynapseCalciums = np.zeros([numberOfNeurons, numberOfNeurons, self.number_of_astrocytes], dtype=np.single)
+        self.calcium_accumulation_from_synapses = np.zeros([self.number_of_astrocytes], dtype=np.single)
 
     def configAstrocyteModel(self, numberOfNeurons):
         self.ip3 = np.zeros([numberOfNeurons, numberOfNeurons], dtype=np.single)
@@ -277,34 +278,34 @@ class astrocyte_params:
     Creates a separate file for dataGatheringVariables, activityAnimation, astrocyteConnections and astrocyteConnections
     """
 
-    def saveAstrocyteData(self, directory, Network):
+    def saveAstrocyteData(self, directory, network):
         if self.usePreSynapse:
             pd.DataFrame(self.dataGatheringVariables).to_csv(
                 directory + "/" + "AstroData_dataGatheringVariables" + ".csv", header=None, index=None)
 
-        if self.useAstrocyteNetwork:
+        if self.use_astrocyte_network:
             pd.DataFrame(self.activityAnimation).to_csv(directory + "/" + "AstroData_activityAnimation" + ".csv",
                                                         header=None, index=None)
-            pd.DataFrame(Network.astrocyteConnections).to_csv(
+            pd.DataFrame(network.astrocyte_connections).to_csv(
                 directory + "/" + "AstroData_astrocyteConnections" + ".csv", header=None, index=None)
-            pd.DataFrame(Network.astrocyteLocation).to_csv(directory + "/" + "AstroData_astrocyteLocation" + ".csv",
+            pd.DataFrame(network.astrocyte_locations).to_csv(directory + "/" + "AstroData_astrocyteLocation" + ".csv",
                                                            header=None, index=None)
-        #print("Saved astrocyte data")
+        # print("Saved astrocyte data")
 
     def computeModifiedPreSynapseModel(self, spikeVector, numberOfNeurons, network, tInMS):
         rv = np.zeros([numberOfNeurons, numberOfNeurons])
         if np.sum(spikeVector) > 0:
-            a = network.excitatorySynapses * self.alpha
-            u_alpha = np.multiply(np.multiply(self.w, network.excitatorySynapses), 1 - self.glu) + np.multiply(a,
-                                                                                                               self.glu)
+            a = network.excitatory_synapses * self.alpha
+            u_alpha = np.multiply(np.multiply(self.w, network.excitatory_synapses), 1 - self.glu) + np.multiply(a,
+                                                                                                                self.glu)
 
             uMatrix = np.where(self.w < 0, self.w, 0) + u_alpha
-            self.spikingMatrix = np.transpose(np.transpose(network.activeSynapses) * spikeVector)
+            self.spikingMatrix = np.transpose(np.transpose(network.active_synapses) * spikeVector)
 
             self.aux = np.multiply(np.multiply(uMatrix, self.spikingMatrix), 1 - self.u)
 
             # swapping "negative u" values to positive. calcium builds up t
-            self.aux = np.multiply(network.synapseEffect, self.aux)
+            self.aux = np.multiply(network.synapse_effect, self.aux)
 
             # Adding calcium sensor
             self.u = self.u + self.aux
@@ -317,24 +318,24 @@ class astrocyte_params:
             self.rr = np.multiply(self.aux, self.spikingMatrix)
 
             # matrix is resources released in synapse times the effect of the synapse and taking only those that are spiking this slot.
-            rv = np.multiply(network.synapseEffect, self.rr) * self.scalingFactor
+            rv = np.multiply(network.synapse_effect, self.rr) * self.scalingFactor
 
             # Removing resources from matrix x according to used resources.
             self.x = self.x - self.rr
         else:
-            self.rr.fill(0) #Fill probably faster than completley allocating memory a new
+            self.rr.fill(0)  # Fill probably faster than completley allocating memory a new
 
         if self.usePreSynapse:
             for i in range(0, tInMS):
                 self.x = self.x + np.multiply(self.RegenRes * (1 - self.x),
-                                              network.activeSynapses)  # Potentiating effect
-            self.u = self.CaRegen ** tInMS * np.multiply( self.u, network.activeSynapses)
+                                              network.active_synapses)  # Potentiating effect
+            self.u = self.CaRegen ** tInMS * np.multiply(self.u, network.active_synapses)
 
-        if self.useAstrocyte:
-            if self.useAstrocyteNetwork:
-                rrToAstrocyte = np.multiply(self.rr, network.synapsesConnectedToAstrocytes)
+        if self.use_astrocyte:
+            if self.use_astrocyte_network:
+                rrToAstrocyte = np.multiply(self.rr, network.is_synapse_connect_to_astrocyte)
             else:
-                rrToAstrocyte = np.multiply(self.rr, network.excitatorySynapses)
+                rrToAstrocyte = np.multiply(self.rr, network.excitatory_synapses)
 
             self.astrocyteSimulation(rrToAstrocyte, network, numberOfNeurons, tInMS)
             self.glu *= self.GlutamateRemoval ** tInMS
@@ -360,7 +361,7 @@ class astrocyte_params:
         self.glu += self.AstrocyteReleaseAmount * np.multiply(1 - self.glu,
                                                               self.releasingAstrocytes)
 
-        if self.useAstrocyteNetwork:
+        if self.use_astrocyte_network:
             self.simulateAstrocyteNetwork(network, numberOfNeurons)
 
     """
@@ -370,16 +371,16 @@ class astrocyte_params:
     def simulateAstrocyteNetwork(self, network, numberOfNeurons):
         # Broadcast (1xnumberOfAstrocytes) to (numberOfNeurons x numberOfNeurons x numberOfAstrocytes)
         # Update the amount of calcium in the tripartite synapses according to the calcium update computed in astrocyteSimulation()
-        caEffect = np.broadcast_to(self.astrocyteCa[:, :, None], self.astrocyteCa.shape + (self.numberOfAstrocytes,))
-        self.tripartiteSynapseCalciums = np.multiply(caEffect, network.astrocyteNeuronConnections)
+        caEffect = np.broadcast_to(self.astrocyteCa[:, :, None], self.astrocyteCa.shape + (self.number_of_astrocytes,))
+        self.tripartiteSynapseCalciums = np.multiply(caEffect, network.astrocyte_neuron_connections)
 
         self.runNetworkModel(network)
 
         # Broadcast to (numberOfNeurons x numberOfNeurons x numberOfAstrocytes)
         # Communication within astrocyte (TODO ? )
         tile = np.broadcast_to(self.getActivatedAstrocyteMatrix(),
-                               (numberOfNeurons, numberOfNeurons, self.numberOfAstrocytes))
-        caWave = np.sum(np.multiply(tile, network.astrocyteNeuronConnections), axis=2).astype(bool)
+                               (numberOfNeurons, numberOfNeurons, self.number_of_astrocytes))
+        caWave = np.sum(np.multiply(tile, network.astrocyte_neuron_connections), axis=2).astype(bool)
         self.astrocyteInhibition = np.sum(caWave * self.astrocyteInhibitionStrength, axis=0)
         self.ip3 = np.multiply(self.ip3, ~(caWave)) + caWave
 
@@ -393,10 +394,10 @@ class astrocyte_params:
         # Check to how many not active astrocytes this astrocyte is connected to
         # PropagationEfficency is then inversly proportional to that value (if no inactive connections, assume "infinit number" of inactive connections)
         # TODO: Does that make sense?
-        propagationEfficency = np.zeros([self.numberOfAstrocytes])
-        for i in range(0, self.numberOfAstrocytes):
+        propagationEfficency = np.zeros([self.number_of_astrocytes])
+        for i in range(0, self.number_of_astrocytes):
             if self.astrocyteState[i] == 1:
-                connections = network.astrocyteConnections[i, :]
+                connections = network.astrocyte_connections[i, :]
                 numberOfInactiveConnections = np.sum(
                     np.multiply(connections, self.astrocyteState != 1))
                 if numberOfInactiveConnections != 0:
@@ -404,17 +405,17 @@ class astrocyte_params:
 
         # This is the total amount of astrocytic calcium in each astrocyte. (-> We are summing over all regions (aka connections) of one astrocyte)
         caAccumulationFromSynapses = np.sum(self.tripartiteSynapseCalciums, axis=(0, 1))
-        np.seterr(divide='ignore', invalid='ignore') #suppress...
+        np.seterr(divide='ignore', invalid='ignore')  # suppress...
         caAccumulationFromSynapses = np.divide(caAccumulationFromSynapses,
-                                               network.numberExcitatoryConnectionsToAstrocyte) * self.SynapseCaEffect
+                                               network.nr_of_excitatory_conns_to_astrocyte) * self.SynapseCaEffect
 
         # In the paper, sumOfEfficencies is the Beta-Term
-        ip3FluxIn = np.multiply(np.dot(np.squeeze(propagationEfficency), network.astrocyteConnections),
-                                network.activationThreshold)
+        ip3FluxIn = np.multiply(np.dot(np.squeeze(propagationEfficency), network.astrocyte_connections),
+                                network.activation_threshold)
         sumOfEfficencies = ip3FluxIn + caAccumulationFromSynapses
 
         # Activate if sum of efficencies is > activationThreshold and if that's the case, with probability activationProbability
-        activating = np.multiply(sumOfEfficencies, self.getInactivatedAstrocyteMatrix()) > network.activationThreshold
+        activating = np.multiply(sumOfEfficencies, self.getInactivatedAstrocyteMatrix()) > network.activation_threshold
         activated = np.logical_and((self.getRandomArray() < self.ActivationProbability), activating)
         self.astrocyteState += activated
 
@@ -436,12 +437,13 @@ class astrocyte_params:
     Compute AVG-Data that can later be used to compare different networks
     To save memory, only the data of one specific astrocyte is recorded. The astrocyte is chosen at the first timestep
     """
+
     def calculateAstrocyteData(self, network, rV, synStr, timeIndex):
-        if self.useAstrocyte:
-            self.avgAstroGlutamate = np.sum(self.glu) / network.numberOfExcitatorySyn
-            self.avgCaInAstrocytes = np.sum(self.astrocyteCa) / network.numberOfExcitatorySyn
+        if self.use_astrocyte:
+            self.avgAstroGlutamate = np.sum(self.glu) / network.nr_of_excitatory_synapses
+            self.avgCaInAstrocytes = np.sum(self.astrocyteCa) / network.nr_of_excitatory_synapses
             if timeIndex == 0:
-                result = np.argwhere(network.synapsesConnectedToAstrocytes == 1)
+                result = np.argwhere(network.is_synapse_connect_to_astrocyte == 1)
                 ind = int(len(result[:, 0]) / 2)
                 self.chosenAstrocyte = [result[ind, 0], result[ind, 1]]
 
@@ -454,16 +456,16 @@ class astrocyte_params:
             self.singAstroGlutamate = self.glu[self.chosenAstrocyte[0], self.chosenAstrocyte[1]]
         if self.usePreSynapse:
             self.avgExInWeight = np.sum(np.multiply(np.multiply(self.spikingMatrix, synStr),
-                                                    network.excitatorySynapses)) / network.numberOfExcitatorySyn
+                                                    network.excitatory_synapses)) / network.nr_of_excitatory_synapses
             self.avgInWeight = -1 * np.sum(np.multiply(np.multiply(self.spikingMatrix, synStr),
-                                                       network.inhibitorySynapses)) / network.numberOfInhibitorySyn
+                                                       network.inhibitory_synapses)) / network.nr_of_inhibitory_synapses
 
         self.gatherAstrocyteData()
 
     # take computed avgs and save them in dataGatheringVariable. That way, they can later be saved easily
     def gatherAstrocyteData(self):
         dataArray = np.zeros(13)
-        if self.useAstrocyte:
+        if self.use_astrocyte:
             dataArray = [self.avgAstroGlutamate, 0, 0, 0, 0, self.avgCaInAstrocytes, self.singSynstr, self.singCal,
                          self.singRR,
                          self.singIp3, self.singCaInAstrocytes, self.singRelease, self.singAstroGlutamate]
@@ -474,7 +476,7 @@ class astrocyte_params:
         self.dataGatheringVariables = np.append(self.dataGatheringVariables, [dataArray], axis=0)
 
     def getRandomArray(self):
-        return np.random.rand(self.numberOfAstrocytes)
+        return np.random.rand(self.number_of_astrocytes)
 
     """
     Returns array that indicates where astrocytes are inactivated

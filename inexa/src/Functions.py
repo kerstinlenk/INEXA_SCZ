@@ -119,7 +119,7 @@ def distance_coupling(coord, threshold):
     return nn_dense
 
 
-def createGaussianConnections(coord, std, cut_off):
+def create_gaussian_connections(coord, std, cut_off):
     """
     Function description: to be added:
     Briefly: Deterministic coupling by distance
@@ -132,7 +132,7 @@ def createGaussianConnections(coord, std, cut_off):
     for i in np.arange(0, M):
         for j in np.arange(0, M):
             d = np.linalg.norm(coord[:, i] - coord[:, j])
-            if (d > cut_off):
+            if d > cut_off:
                 nn_dense[i, j] = 0
             else:
                 gauss_prob_connect = std * np.sqrt(2 * np.pi) * stats.norm.pdf(d, loc=0, scale=std)
@@ -387,3 +387,5 @@ def analyzeAstrocyteActivity(activityAnimation):
     nrActivationsPerAstrocyte = np.count_nonzero(changeInState > 0, axis=1)
 
     return activityLength, nrActivationsPerAstrocyte
+
+

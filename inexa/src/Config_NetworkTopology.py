@@ -5,6 +5,7 @@ import pandas as pd
 
 # Set Neuron parameters
 from src.Functions import uniform_3D, distance_coupling, complex_connect, create_gaussian_connections
+from src.usability_functions import read_csv
 
 SEPARATOR = ";"
 
@@ -40,8 +41,8 @@ class NetworkTopology:
     # Standard deviation of astrocyte connectivity to neuron
     astrocyte_neuron_connectivity_std = 150
 
-    create_new_neuron_topology = False
-    create_new_astrocyte_topology = False
+    create_new_neuron_topology = True  # TODO Reverse to false
+    create_new_astrocyte_topology = True # TODO reverse to false
 
     path_to_neuron_networks = ""
     path_to_astrocyte_networks = ""
@@ -76,7 +77,7 @@ class NetworkTopology:
         nr_of_neurons = neuron.number
 
         self.base_activity = np.random.triangular(0, 0.5, 1, size=nr_of_neurons)
-        self.is_synapse_connect_to_astrocyte = np.zeros([nr_of_neurons, nr_of_neurons])
+        self.is_synapse_connect_to_astrocyte = np.zeros([nr_of_neurons, nr_of_neurons], dtype=np.bool)
 
         if self.create_new_neuron_topology:
             # create randomly uniform 3D Locations within the culture space. Locations must be at least self.min_neuron_distance apart.
@@ -162,12 +163,14 @@ class NetworkTopology:
         pathANC = self.path_to_astrocyte_network + ASTROCYTE_NEURON_CONNECTIONS_FNAME
         pathAC = self.path_to_astrocyte_network + ASTROCYTE_CONNECTIONS_FNAME
 
-        self.astrocyte_locations = pd.read_csv(pathANT, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(dtype=np.short)
-        self.astrocyte_connections = pd.read_csv(pathAC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(np.short)
+        self.astrocyte_locations = read_csv(pathANT, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(dtype=np.short)
+        self.astrocyte_connections = read_csv(pathAC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(np.short)
 
-        temp = pd.read_csv(pathANC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
+        temp = read_csv(pathANC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
         self.astrocyte_neuron_connections = np.zeros((neuron.number, neuron.number, astrocyte.number_of_astrocytes), dtype=np.int8)
 
+
+        # do some weird magic to reshape the temp array. honestly, there's probably an easier way to do this.
         line = 0
         for iii in range(astrocyte.number_of_astrocytes):
             for i in range(neuron.number):
@@ -182,5 +185,5 @@ class NetworkTopology:
     def load_neuron_network(self):
         pathNNT = self.path_to_neuron_networks + NEURON_NETWORK_TOPOLOGY_FNAME
         pathBN = self.path_to_neuron_networks + BASE_NETWORK_FNAME
-        self.neuron_locations = pd.read_csv(pathNNT, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
-        self.base_network_activity = pd.read_csv(pathBN, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
+        self.neuron_locations = read_csv(pathNNT, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
+        self.base_network_activity = read_csv(pathBN, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
