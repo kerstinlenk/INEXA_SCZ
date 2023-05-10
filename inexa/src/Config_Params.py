@@ -13,7 +13,7 @@ import numpy as np
 # Class Params contains basic parameters for the simulation (e.g. simulation time)
 def config_params():
     #Time in msec
-    lengthST = 3000 #Total simulation time: default value 300000
+    lengthST = 300000 #Total simulation time: default value 300000
     t = 0.005 #Timestep size in seconds
 
     # Create object from class params containing the parameters listed above

@@ -7,7 +7,7 @@ import pandas as pd
 from src.Functions import uniform_3D, distance_coupling, complex_connect, create_gaussian_connections
 from src.usability_functions import read_csv
 
-SEPARATOR = ";"
+SEPARATOR = ","
 
 BASE_NETWORK_FNAME = "/BaseNetwork.csv"
 
@@ -41,8 +41,8 @@ class NetworkTopology:
     # Standard deviation of astrocyte connectivity to neuron
     astrocyte_neuron_connectivity_std = 150
 
-    create_new_neuron_topology = True  # TODO Reverse to false
-    create_new_astrocyte_topology = True # TODO reverse to false
+    create_new_neuron_topology = False  # TODO Reverse to false
+    create_new_astrocyte_topology = False # TODO reverse to false
 
     path_to_neuron_networks = ""
     path_to_astrocyte_networks = ""
@@ -97,19 +97,21 @@ class NetworkTopology:
         # create astrocyte network
         # Each column is connected to each astrocyte.
         if astrocyte.use_astrocyte_network and self.create_new_astrocyte_topology:
-            # create astrocytes
-            self.astrocyte_locations = uniform_3D(astrocyte.number_of_astrocytes, self.culture_space_dim, self.min_astrocyte_distance)
-            # Connecting astrocytes that ended up close enough to each other.
-            self.astrocyte_connections = distance_coupling(self.astrocyte_locations, self.max_astrocyte_distance)
-            number_of_connections = np.sum(self.astrocyte_connections, axis=0)
-            self.activation_threshold = astrocyte.slope * number_of_connections + astrocyte.intercept
+            self.create_astrocyte_topology(astrocyte, nr_of_neurons)
 
-            # Connect the two networks
-            self.astrocyte_neuron_connections = complex_connect(self.neuron_locations, self.base_network_activity,
-                                                                self.astrocyte_locations,
-                                                                self.astrocyte_neuron_connectivity_std,
-                                                                self.max_astrocyte_reach_distance)
-            self.init_synapses_connected_to_astrocyte(nr_of_neurons)
+    def create_astrocyte_topology(self, astrocyte, nr_of_neurons):
+        # create astrocytes
+        self.astrocyte_locations = uniform_3D(astrocyte.number_of_astrocytes, self.culture_space_dim, self.min_astrocyte_distance)
+        # Connecting astrocytes that ended up close enough to each other.
+        self.astrocyte_connections = distance_coupling(self.astrocyte_locations, self.max_astrocyte_distance)
+        number_of_connections = np.sum(self.astrocyte_connections, axis=0)
+        self.activation_threshold = astrocyte.slope * number_of_connections + astrocyte.intercept
+        # Connect the two networks
+        self.astrocyte_neuron_connections = complex_connect(self.neuron_locations, self.base_network_activity,
+                                                            self.astrocyte_locations,
+                                                            self.astrocyte_neuron_connectivity_std,
+                                                            self.max_astrocyte_reach_distance)
+        self.init_synapses_connected_to_astrocyte(nr_of_neurons)
 
     def init_synapses_connected_to_astrocyte(self, nr_of_neurons):
         for i in range(0, nr_of_neurons):
@@ -127,14 +129,14 @@ class NetworkTopology:
 
         # synapse effect: Has values 1 for exitatory, 0 for not  connected and -1 for negatives.
         self.synapse_effect = self.excitatory_synapses - self.inhibitory_synapses  # Counting how many excitatory connections ended up to each astrocyte
-        self.nr_of_excitatory_conns_to_astrocyte = sum(sum(self.astrocyte_neuron_connections))
+
+        self.nr_of_excitatory_conns_to_astrocyte = np.sum(self.astrocyte_neuron_connections, axis=(0,1))
         # Counting which synapses are connected to an astrocyte to begin with
         self.nr_of_astrocytes_connected_to_synapse = np.sum(self.astrocyte_neuron_connections, axis=2)
         self.nr_of_astrocyte_connections = np.sum(self.astrocyte_connections, axis=0)
 
     def save_network_topology(self, neuron, astrocyte, directory):
         folderName = directory
-        print(directory)
         if not os.path.exists(folderName):
             os.makedirs(folderName)
         # Neuron Network
@@ -155,7 +157,10 @@ class NetworkTopology:
         self.is_synapse_connect_to_astrocyte = np.zeros([neuron.number, neuron.number])
         self.load_neuron_network()
         # import Astrocyte data
-        if astrocyte.use_astrocyte_network:
+
+        if self.create_new_astrocyte_topology and astrocyte.use_astrocyte_network:
+            self.create_astrocyte_topology(astrocyte, neuron.number)
+        elif astrocyte.use_astrocyte_network:
             self.load_astrocyte_network(astrocyte, neuron)
 
     def load_astrocyte_network(self, astrocyte, neuron):
@@ -163,8 +168,8 @@ class NetworkTopology:
         pathANC = self.path_to_astrocyte_network + ASTROCYTE_NEURON_CONNECTIONS_FNAME
         pathAC = self.path_to_astrocyte_network + ASTROCYTE_CONNECTIONS_FNAME
 
-        self.astrocyte_locations = read_csv(pathANT, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(dtype=np.short)
-        self.astrocyte_connections = read_csv(pathAC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(np.short)
+        self.astrocyte_locations = read_csv(pathANT, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
+        self.astrocyte_connections = read_csv(pathAC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(np.bool)
 
         temp = read_csv(pathANC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
         self.astrocyte_neuron_connections = np.zeros((neuron.number, neuron.number, astrocyte.number_of_astrocytes), dtype=np.int8)

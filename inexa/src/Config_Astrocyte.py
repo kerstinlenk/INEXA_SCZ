@@ -7,6 +7,8 @@ import numpy as np
 
 import pandas as pd
 
+from src.Config_NetworkTopology import SEPARATOR
+
 
 def config_astrocytes():
     # Minimum distance between 2 neurons in micrometers

@@ -31,7 +31,7 @@ def init_model(resultDirectory="results", premadeNNTPath="nn", param_config=None
         Network.load_network_topologies(Neuron, Astrocyte)
         Network.collect_useful_values()
         Network.save_network_topology(Neuron, Astrocyte, resultDirectory)
-        Network.BaseBasicActivity = np.random.triangular(0, 1 / 2, 1, size=Neuron.number)
+        Network.base_activity = np.random.triangular(0, 1 / 2, 1, size=Neuron.number)
 
     return Params, Neuron, Astrocyte, Network
 

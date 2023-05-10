@@ -12,8 +12,9 @@ CONNECTIVITY_PATH = NETWORK_PATH + "/connect_" + str(CONNECTIVITY_NR)
 
 
 def run_and_init_model(results_directory, network_path):
-    params, neuron, astrocyte, network = init_model(network_path)
+    params, neuron, astrocyte, network = init_model(results_directory, network_path)
     return run_model(neuron.c, neuron, astrocyte, network, params, results_directory)
+
 
 create_folder(NETWORK_PATH)
 create_folder(CONNECTIVITY_PATH)
@@ -28,7 +29,6 @@ for i in range(1):
     burstData = run_and_init_model(path_to_result, network_path=NETWORK_PATH)
 
     burst_data.append(burstData)
-
     toc = time.perf_counter()
     print("Time ", toc - tic)
 
