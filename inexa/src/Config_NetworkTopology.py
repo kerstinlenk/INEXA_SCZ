@@ -7,7 +7,7 @@ import pandas as pd
 from src.Functions import uniform_3D, distance_coupling, complex_connect, create_gaussian_connections
 from src.usability_functions import read_csv
 
-SEPARATOR = ","
+SEPARATOR = ",|;"
 
 BASE_NETWORK_FNAME = "/BaseNetwork.csv"
 
@@ -41,11 +41,20 @@ class NetworkTopology:
     # Standard deviation of astrocyte connectivity to neuron
     astrocyte_neuron_connectivity_std = 150
 
-    create_new_neuron_topology = False  # TODO Reverse to false
-    create_new_astrocyte_topology = False # TODO reverse to false
+    create_new_neuron_topology = False
+    create_new_astrocyte_topology = False
 
     path_to_neuron_networks = ""
     path_to_astrocyte_networks = ""
+
+    # Is De Pitta presynapse simulator on? boolean
+    pre_synapse = True  # Not taking any responsibility for False
+
+    # Is astrocyte simulator on? boolean
+    simulate_astrocyte = True  # Not taking any responsibility for False
+
+    # Is astrocyte network simulator on? boolean
+    simulate_astrocyte_network = True  # Not taking any responsibility for False
 
     def __init__(self, path_to_neuron_networks, path_to_astrocyte_networks):
         self.path_to_neuron_networks = path_to_neuron_networks
@@ -87,8 +96,10 @@ class NetworkTopology:
 
             #  Excitatory and Inhibitory synaptic strengths is a random number between 0 and an upper boundary from a triangular distribution
             self.base_network_activity = np.zeros((nr_of_neurons, nr_of_neurons))
-            self.base_network_activity[:neuron.nr_excitatory_neurons, :] = np.random.triangular(0, 0.5, 1, size=(neuron.nr_excitatory_neurons, neuron.number))
-            self.base_network_activity[neuron.nr_excitatory_neurons:, :] = np.random.triangular(-1, -0.5, 0, size=(neuron.nr_inhibitory_neurons, neuron.number))
+            self.base_network_activity[:neuron.nr_excitatory_neurons, :] = np.random.triangular(0, 0.5, 1,
+                                                                                                size=(neuron.nr_excitatory_neurons, neuron.number))
+            self.base_network_activity[neuron.nr_excitatory_neurons:, :] = np.random.triangular(-1, -0.5, 0,
+                                                                                                size=(neuron.nr_inhibitory_neurons, neuron.number))
             self.base_network_activity[neuronConnections == 0] = 0  # non-active neuron connections = 0
             np.fill_diagonal(self.base_network_activity, 0)
         else:
@@ -130,9 +141,11 @@ class NetworkTopology:
         # synapse effect: Has values 1 for exitatory, 0 for not  connected and -1 for negatives.
         self.synapse_effect = self.excitatory_synapses - self.inhibitory_synapses  # Counting how many excitatory connections ended up to each astrocyte
 
-        self.nr_of_excitatory_conns_to_astrocyte = np.sum(self.astrocyte_neuron_connections, axis=(0,1))
-        # Counting which synapses are connected to an astrocyte to begin with
-        self.nr_of_astrocytes_connected_to_synapse = np.sum(self.astrocyte_neuron_connections, axis=2)
+        if self.simulate_astrocyte_network:
+            # self.nr_of_excitatory_conns_to_astrocyte = np.sum(self.astrocyte_neuron_connections, axis=(0, 1))
+            self.nr_of_excitatory_conns_to_astrocyte = sum(sum(self.astrocyte_neuron_connections))
+            # Counting which synapses are connected to an astrocyte to begin with
+            self.nr_of_astrocytes_connected_to_synapse = np.sum(self.astrocyte_neuron_connections, axis=2)
         self.nr_of_astrocyte_connections = np.sum(self.astrocyte_connections, axis=0)
 
     def save_network_topology(self, neuron, astrocyte, directory):
@@ -168,12 +181,11 @@ class NetworkTopology:
         pathANC = self.path_to_astrocyte_network + ASTROCYTE_NEURON_CONNECTIONS_FNAME
         pathAC = self.path_to_astrocyte_network + ASTROCYTE_CONNECTIONS_FNAME
 
-        self.astrocyte_locations = read_csv(pathANT, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
-        self.astrocyte_connections = read_csv(pathAC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(np.bool)
+        self.astrocyte_locations = read_csv(pathANT, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(dtype=np.short)
+        self.astrocyte_connections = read_csv(pathAC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy(np.short)
 
         temp = read_csv(pathANC, sep=SEPARATOR, header=None).dropna(how='all', axis=1).to_numpy()
         self.astrocyte_neuron_connections = np.zeros((neuron.number, neuron.number, astrocyte.number_of_astrocytes), dtype=np.int8)
-
 
         # do some weird magic to reshape the temp array. honestly, there's probably an easier way to do this.
         line = 0

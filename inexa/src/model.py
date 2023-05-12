@@ -14,9 +14,9 @@ from src.Neuron_Info import NeuronInfo
 
 def init_model(resultDirectory="results", premadeNNTPath="nn", param_config=None):
     Params = config_params()
-    Neuron = config_neuron()
-    Astrocyte = config_astrocytes()
     Network = config_networkTopology(premadeNNTPath, premadeNNTPath)
+    Neuron = config_neuron()
+    Astrocyte = config_astrocytes(Network)
 
     # Neuron basic activity (von matlab code main,  ca zeile 33 bis 57)
     Neuron.setSynStr_bruteForce()
@@ -40,6 +40,7 @@ def run_model(pc, neuron, astrocyte, network, params, directory="results", saveD
 
     # Update config, reset values where necessary
     neuron.setNeuronConfig(pc, network.base_network_activity, network.base_activity)
+
     astrocyte.setAstrocyteConfig(neuron.oex, neuron.oin, neuron.number, neuron.synStr, network.active_synapses,
                                  int(params.lengthST / params.getTInMS()))
 

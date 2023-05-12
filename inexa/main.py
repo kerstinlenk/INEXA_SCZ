@@ -5,10 +5,9 @@ import pandas as pd
 from src.model import init_model, run_model
 from src.usability_functions import create_folder
 
-NETWORK_NR = 5
-NETWORK_PATH = "../results/network_" + str(NETWORK_NR)
-CONNECTIVITY_NR = 1
-CONNECTIVITY_PATH = NETWORK_PATH + "/connect_" + str(CONNECTIVITY_NR)
+NETWORK_NR = 1
+NETWORK_PATH = "../networks/network_0/connect_0"
+
 
 
 def run_and_init_model(results_directory, network_path):
@@ -17,14 +16,13 @@ def run_and_init_model(results_directory, network_path):
 
 
 create_folder(NETWORK_PATH)
-create_folder(CONNECTIVITY_PATH)
 
 burst_data = []
-
-for i in range(1):
+path_to_result = ""
+for i in range(5):
     tic = time.perf_counter()
 
-    path_to_result = CONNECTIVITY_PATH + "/iteration_" + str(i)
+    path_to_result = "../results/iteration_" + str(i)
     create_folder(path_to_result)
     burstData = run_and_init_model(path_to_result, network_path=NETWORK_PATH)
 
@@ -33,7 +31,7 @@ for i in range(1):
     print("Time ", toc - tic)
 
 df5 = pd.DataFrame(burst_data)
-df5.to_csv(CONNECTIVITY_PATH + "/burst.csv")
+df5.to_csv(path_to_result + "/.." + "/burst.csv")
 
 toc = time.perf_counter()
 print("Time ", toc - tic)

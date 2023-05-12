@@ -9,5 +9,5 @@ def create_folder(path):
 
 def read_csv(path, sep=",", header=None):
     if os.path.exists(path):
-        return pd.read_csv(path, sep=sep, header=header)
+        return pd.read_csv(path, sep=sep, header=header, engine="python")
     raise FileNotFoundError("File ", path, " not found")

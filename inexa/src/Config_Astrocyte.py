@@ -7,10 +7,10 @@ import numpy as np
 
 import pandas as pd
 
-from src.Config_NetworkTopology import SEPARATOR
+from src.Config_NetworkTopology import SEPARATOR, NetworkTopology
 
 
-def config_astrocytes():
+def config_astrocytes(network_configuration: NetworkTopology):
     # Minimum distance between 2 neurons in micrometers
     MinimumNeuronDistance = 10
 
@@ -25,16 +25,6 @@ def config_astrocytes():
 
     # Absolute maximum distance after which the astrocyte will not connect to synapses
     MaxAstrocyteReachDistance = 70
-
-    # Is De Pitta presynapse simulator on? boolean
-    preSynapse = True
-    #    preSynapse = 0
-
-    # Is astrocyte simulator on? boolean
-    Astrocyte = True
-
-    # Is astrocyte network simulator on? boolean
-    AstrocyteNetwork = True
 
     # Calcium at terminal bound to sensors at the beginning between 0 and 1.
     Calcium = 0
@@ -83,16 +73,14 @@ def config_astrocytes():
     # Spontanous activity - only the astrocytes in unactivated state can activate
     SpontaneousActivation = 0
 
-    tinMS = 5
-
     # Average activation time of an astrocyte in milliseconds
-    ActivationProbability = tinMS / 1500
+    ActivationProbability = 5 / 1500
 
     # Average Activation Time
-    ActivationTime = tinMS / 7000
+    ActivationTime = 5 / 7000
 
     # Average Refractory Time
-    RefractoryTime = tinMS / 5000
+    RefractoryTime = 5 / 5000
 
     # Increase in required flux to activate an astrocyte for each connection it has
     slope = 0.02
@@ -111,9 +99,9 @@ def config_astrocytes():
                             NeuroSTD,
                             ANconnectivitySTD,
                             MaxAstrocyteReachDistance,
-                            preSynapse,
-                            Astrocyte,
-                            AstrocyteNetwork,
+                            network_configuration.pre_synapse,
+                            network_configuration.simulate_astrocyte,
+                            network_configuration.simulate_astrocyte_network,
                             Calcium,
                             Resources,
                             AstrocyteGlutamate,
@@ -184,15 +172,11 @@ class astrocyte_params:
         self.NeuroSTD = NeuroSTD
         self.ANconnectivitySTD = ANconnectivitySTD
         self.MaxAstrocyteReachDistance = MaxAstrocyteReachDistance
+
         self.usePreSynapse = preSynapse
         self.use_astrocyte = Astrocyte
         self.use_astrocyte_network = AstrocyteNetwork
 
-        # Sanity constraints (e.g. if we use AstrocyteNetwork, we also have to use astrocytes)
-        if self.use_astrocyte_network:
-            self.use_astrocyte = True
-        if self.use_astrocyte:
-            self.usePreSynapse = True
 
         if not self.use_astrocyte_network:
             self.number_of_astrocytes = 0
@@ -444,7 +428,7 @@ class astrocyte_params:
         if self.use_astrocyte:
             self.avgAstroGlutamate = np.sum(self.glu) / network.nr_of_excitatory_synapses
             self.avgCaInAstrocytes = np.sum(self.astrocyteCa) / network.nr_of_excitatory_synapses
-            if timeIndex == 0:
+            if timeIndex == 0 and self.use_astrocyte_network:
                 result = np.argwhere(network.is_synapse_connect_to_astrocyte == 1)
                 ind = int(len(result[:, 0]) / 2)
                 self.chosenAstrocyte = [result[ind, 0], result[ind, 1]]
